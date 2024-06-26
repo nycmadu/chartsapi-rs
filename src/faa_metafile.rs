@@ -17,7 +17,7 @@ pub struct State {
     #[serde(rename = "@ID")]
     pub id: String,
     #[serde(rename = "@state_fullname")]
-    pub state_fullname: String,
+    pub full_name: String,
     #[serde(rename = "city_name")]
     pub cities: Vec<City>,
 }

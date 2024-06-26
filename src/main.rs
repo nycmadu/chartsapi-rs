@@ -1,3 +1,9 @@
+#![warn(
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery,
+)]
+
 use crate::faa_metafile::DigitalTpp;
 use crate::response_dtos::ChartDto;
 use axum::extract::{Query, State};
@@ -58,7 +64,10 @@ fn lookup_charts<'a>(apt_id: &str, hashmaps: &'a Arc<ChartsHashMaps>) -> Option<
 }
 
 async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
-    let metafile = fetch_metafile().await?;
+    let metafile = reqwest::get("https://aeronav.faa.gov/d-tpp/2406/xml_data/d-tpp_Metafile.xml")
+        .await?
+        .text()
+        .await?;
     let dtpp = from_str::<DigitalTpp>(&metafile)?;
     let mut faa: ChartsHashMap = IndexMap::new();
     let mut icao: ChartsHashMap = IndexMap::new();
@@ -68,29 +77,29 @@ async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
             for airport in city.airports {
                 for record in airport.chart_records {
                     let chart_dto = ChartDto {
-                        state: state.id.to_owned(),
-                        state_full: state.state_fullname.to_owned(),
-                        city: city.id.to_owned(),
-                        volume: city.volume.to_owned(),
-                        airport_name: airport.id.to_owned(),
-                        military: airport.military.to_owned(),
-                        faa_ident: airport.apt_ident.to_owned(),
-                        icao_ident: airport.icao_ident.to_owned(),
-                        chart_seq: record.chartseq.to_owned(),
-                        chart_code: record.chart_code.to_owned(),
-                        chart_name: record.chart_name.to_owned(),
-                        pdf_name: record.pdf_name.to_owned(),
+                        state: state.id.clone(),
+                        state_full: state.full_name.clone(),
+                        city: city.id.clone(),
+                        volume: city.volume.clone(),
+                        airport_name: airport.id.clone(),
+                        military: airport.military.clone(),
+                        faa_ident: airport.apt_ident.clone(),
+                        icao_ident: airport.icao_ident.clone(),
+                        chart_seq: record.chartseq.clone(),
+                        chart_code: record.chart_code.clone(),
+                        chart_name: record.chart_name.clone(),
+                        pdf_name: record.pdf_name.clone(),
                         pdf_path: format!(
                             "https://aeronav.faa.gov/d-tpp/2406/{pdf}",
                             pdf = record.pdf_name
                         ),
                     };
 
-                    faa.entry(chart_dto.faa_ident.to_owned())
+                    faa.entry(chart_dto.faa_ident.clone())
                         .and_modify(|charts| charts.push(chart_dto.clone()))
                         .or_insert(vec![chart_dto.clone()]);
 
-                    icao.entry(chart_dto.icao_ident.to_owned())
+                    icao.entry(chart_dto.icao_ident.clone())
                         .and_modify(|charts| charts.push(chart_dto.clone()))
                         .or_insert(vec![chart_dto.clone()]);
                 }
@@ -99,13 +108,4 @@ async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
     }
 
     Ok(ChartsHashMaps { faa, icao })
-}
-
-async fn fetch_metafile() -> Result<String, anyhow::Error> {
-    Ok(
-        reqwest::get("https://aeronav.faa.gov/d-tpp/2406/xml_data/d-tpp_Metafile.xml")
-            .await?
-            .text()
-            .await?,
-    )
 }
