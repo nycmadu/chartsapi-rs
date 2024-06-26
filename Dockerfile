@@ -1,22 +1,15 @@
-FROM rust:1.79 as builder
+FROM rust:latest as builder
 
 RUN USER=root cargo new --bin rust-docker-web
 WORKDIR ./rust-docker-web
-COPY ./Cargo.toml ./Cargo.toml
-RUN cargo build --release
-RUN rm src/*.rs
-
-ADD . ./
-
-RUN rm ./target/release/deps/rust_docker_web
+COPY ./ .
 RUN cargo build --release
 
-
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 ARG APP=/usr/src/app
 
 RUN apt-get update \
-    && apt-get install -y ca-certificates tzdata \
+    && apt-get install -y ca-certificates tzdata openssl \
     && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8000
@@ -28,7 +21,7 @@ RUN groupadd $APP_USER \
     && useradd -g $APP_USER $APP_USER \
     && mkdir -p ${APP}
 
-COPY --from=builder /rust-docker-web/target/release/rust-docker-web ${APP}/rust-docker-web
+COPY --from=builder /rust-docker-web/target/release/chartsapi-rs ${APP}/rust-docker-web
 
 RUN chown -R $APP_USER:$APP_USER ${APP}
 
