@@ -11,10 +11,11 @@ use chrono::NaiveDate;
 use indexmap::IndexMap;
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
-use tokio::sync::OnceCell;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 mod faa_metafile;
 mod response_dtos;
@@ -26,26 +27,53 @@ struct ChartsHashMaps {
     icao: ChartsHashMap,
 }
 
-async fn current_cycle() -> &'static RwLock<String> {
-    static CURRENT_CYCLE: OnceCell<RwLock<String>> = OnceCell::const_new();
-    CURRENT_CYCLE
-        .get_or_init(|| async {
-            RwLock::new(fetch_current_cycle().await.unwrap_or("2406".to_string()))
-        })
-        .await
-}
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    let hashmaps = Arc::new(load_charts().await.unwrap());
+    // Initialize current_cycle and in-memory hashmaps for FAA/ICAO id lookup
+    let current_cycle = RwLock::new(fetch_current_cycle().await.unwrap_or_else(|e| {
+        warn!(
+            "Error initializing current cycle, falling back to default: {}",
+            e
+        );
+        "2406".to_string()
+    }));
+    let hashmaps = Arc::new(RwLock::new(
+        load_charts(&current_cycle.read().await).await.unwrap(),
+    ));
+    let axum_state = Arc::clone(&hashmaps);
 
+    // Spawn cycle and chart update loop
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            match fetch_current_cycle().await {
+                Ok(fetched_cycle) => {
+                    if fetched_cycle.eq_ignore_ascii_case(&current_cycle.read().await) {
+                        return;
+                    }
+
+                    info!("Found new cycle: {fetched_cycle}");
+                    match load_charts(&fetched_cycle).await {
+                        Ok(new_charts) => {
+                            *hashmaps.write().await = new_charts;
+                            *current_cycle.write().await = fetched_cycle;
+                        }
+                        Err(e) => warn!("Error while fetching charts: {}", e),
+                    }
+                }
+                Err(e) => warn!("Error while fetching current cycle: {}", e),
+            }
+        }
+    });
+
+    // Create and run axum app
     let app = Router::new()
         .route("/v1/charts", get(charts_handler))
-        .with_state(hashmaps)
+        .with_state(axum_state)
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
@@ -66,7 +94,7 @@ struct ErrorMessage {
 }
 
 async fn charts_handler(
-    State(hashmaps): State<Arc<ChartsHashMaps>>,
+    State(hashmaps): State<Arc<RwLock<ChartsHashMaps>>>,
     options: Query<ChartsOptions>,
 ) -> Response {
     let Query(chart_options) = options;
@@ -104,21 +132,25 @@ async fn charts_handler(
 
     let mut results: IndexMap<String, Vec<ChartDto>> = IndexMap::new();
     for airport in chart_options.apt.unwrap().split(',') {
-        if let Some(charts) = lookup_charts(airport, &hashmaps) {
+        if let Some(charts) = lookup_charts(airport, &hashmaps).await {
             results.insert(
                 airport.to_owned(),
-                filter_charts_group(charts, chart_options.group),
+                filter_charts_group(&charts, chart_options.group),
             );
         }
     }
     (StatusCode::OK, Json(results)).into_response()
 }
 
-fn lookup_charts<'a>(apt_id: &str, hashmaps: &'a Arc<ChartsHashMaps>) -> Option<&'a Vec<ChartDto>> {
-    hashmaps
-        .faa
-        .get(&apt_id.to_uppercase())
-        .or_else(|| hashmaps.icao.get(&apt_id.to_uppercase()))
+async fn lookup_charts(
+    apt_id: &str,
+    hashmaps: &Arc<RwLock<ChartsHashMaps>>,
+) -> Option<Vec<ChartDto>> {
+    let reader = hashmaps.read().await;
+    reader.faa.get(&apt_id.to_uppercase()).map_or_else(
+        || reader.icao.get(&apt_id.to_uppercase()).cloned(),
+        |charts| Some(charts.clone()),
+    )
 }
 
 fn filter_charts_group(charts: &[ChartDto], group: Option<i32>) -> Vec<ChartDto> {
@@ -153,15 +185,13 @@ fn filter_charts_group(charts: &[ChartDto], group: Option<i32>) -> Vec<ChartDto>
     )
 }
 
-async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
+async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Error> {
     debug!("Starting charts metafile request");
-    let metafile = reqwest::get(format!(
-        "{base}/xml_data/d-tpp_Metafile.xml",
-        base = cycle_url().await
-    ))
-    .await?
-    .text()
-    .await?;
+    let base_url = cycle_url(current_cycle);
+    let metafile = reqwest::get(format!("{base_url}/xml_data/d-tpp_Metafile.xml"))
+        .await?
+        .text()
+        .await?;
     debug!("Charts metafile request completed");
     let dtpp = from_str::<DigitalTpp>(&metafile)?;
     let mut faa: ChartsHashMap = IndexMap::new();
@@ -185,11 +215,7 @@ async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
                         chart_code: record.chart_code.clone(),
                         chart_name: record.chart_name.clone(),
                         pdf_name: record.pdf_name.clone(),
-                        pdf_path: format!(
-                            "{base}/{pdf}",
-                            base = cycle_url().await,
-                            pdf = record.pdf_name
-                        ),
+                        pdf_path: format!("{base_url}/{pdf}", pdf = record.pdf_name),
                         chart_group: match record.chart_code.as_str() {
                             "IAP" => ChartGroup::Approaches,
                             "ODP" | "DP" | "DAU" => ChartGroup::Departures,
@@ -231,9 +257,6 @@ async fn fetch_current_cycle() -> Result<String, anyhow::Error> {
     Ok(cycle_str)
 }
 
-async fn cycle_url() -> String {
-    format!(
-        "https://aeronav.faa.gov/d-tpp/{current_cycle}",
-        current_cycle = current_cycle().await.read().unwrap()
-    )
+fn cycle_url(current_cycle: &str) -> String {
+    format!("https://aeronav.faa.gov/d-tpp/{current_cycle}",)
 }
