@@ -187,7 +187,7 @@ fn filter_charts_group(charts: &[ChartDto], group: Option<i32>) -> Vec<ChartDto>
 
 async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Error> {
     debug!("Starting charts metafile request");
-    let base_url = cycle_url(current_cycle).await;
+    let base_url = cycle_url(current_cycle);
     let metafile = reqwest::get(format!("{base_url}/xml_data/d-tpp_Metafile.xml"))
         .await?
         .text()
@@ -257,6 +257,6 @@ async fn fetch_current_cycle() -> Result<String, anyhow::Error> {
     Ok(cycle_str)
 }
 
-async fn cycle_url(current_cycle: &str) -> String {
+fn cycle_url(current_cycle: &str) -> String {
     format!("https://aeronav.faa.gov/d-tpp/{current_cycle}",)
 }
