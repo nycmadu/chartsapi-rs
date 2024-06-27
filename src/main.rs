@@ -41,7 +41,9 @@ async fn main() {
         );
         "2406".to_string()
     }));
-    let hashmaps = Arc::new(RwLock::new(load_charts(&current_cycle).await.unwrap()));
+    let hashmaps = Arc::new(RwLock::new(
+        load_charts(&current_cycle.read().await).await.unwrap(),
+    ));
     let axum_state = Arc::clone(&hashmaps);
 
     // Spawn cycle and chart update loop
@@ -53,12 +55,12 @@ async fn main() {
                     if fetched_cycle.eq_ignore_ascii_case(&current_cycle.read().await) {
                         return;
                     }
-                    info!("Found new cycle: {fetched_cycle}");
-                    *current_cycle.write().await = fetched_cycle;
 
-                    match load_charts(&current_cycle).await {
+                    info!("Found new cycle: {fetched_cycle}");
+                    match load_charts(&fetched_cycle).await {
                         Ok(new_charts) => {
                             *hashmaps.write().await = new_charts;
+                            *current_cycle.write().await = fetched_cycle;
                         }
                         Err(e) => warn!("Error while fetching charts: {}", e),
                     }
@@ -183,7 +185,7 @@ fn filter_charts_group(charts: &[ChartDto], group: Option<i32>) -> Vec<ChartDto>
     )
 }
 
-async fn load_charts(current_cycle: &RwLock<String>) -> Result<ChartsHashMaps, anyhow::Error> {
+async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Error> {
     debug!("Starting charts metafile request");
     let base_url = cycle_url(current_cycle).await;
     let metafile = reqwest::get(format!("{base_url}/xml_data/d-tpp_Metafile.xml"))
@@ -255,9 +257,6 @@ async fn fetch_current_cycle() -> Result<String, anyhow::Error> {
     Ok(cycle_str)
 }
 
-async fn cycle_url(current_cycle: &RwLock<String>) -> String {
-    format!(
-        "https://aeronav.faa.gov/d-tpp/{current_cycle}",
-        current_cycle = current_cycle.read().await
-    )
+async fn cycle_url(current_cycle: &str) -> String {
+    format!("https://aeronav.faa.gov/d-tpp/{current_cycle}",)
 }
