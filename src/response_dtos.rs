@@ -1,6 +1,15 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ChartGroup {
+    General,
+    Departures,
+    Arrivals,
+    Approaches,
+    APD,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChartDto {
     pub state: String,
     pub state_full: String,
@@ -15,4 +24,6 @@ pub struct ChartDto {
     pub chart_name: String,
     pub pdf_name: String,
     pub pdf_path: String,
+    #[serde(skip_serializing)]
+    pub chart_group: ChartGroup,
 }
