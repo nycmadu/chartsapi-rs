@@ -1,8 +1,4 @@
-#![warn(
-    clippy::all,
-    clippy::pedantic,
-    clippy::nursery,
-)]
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 
 use crate::faa_metafile::DigitalTpp;
 use crate::response_dtos::ChartDto;
@@ -14,6 +10,8 @@ use indexmap::IndexMap;
 use quick_xml::de::from_str;
 use serde::Deserialize;
 use std::sync::Arc;
+use tower_http::trace::TraceLayer;
+use tracing::info;
 
 mod faa_metafile;
 mod response_dtos;
@@ -27,11 +25,16 @@ struct ChartsHashMaps {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
     let hashmaps = Arc::new(load_charts().await.unwrap());
 
     let app = Router::new()
         .route("/v1/charts", get(charts_handler))
-        .with_state(hashmaps);
+        .with_state(hashmaps)
+        .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -71,6 +74,7 @@ async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
     let dtpp = from_str::<DigitalTpp>(&metafile)?;
     let mut faa: ChartsHashMap = IndexMap::new();
     let mut icao: ChartsHashMap = IndexMap::new();
+    let mut count = 0;
 
     for state in dtpp.states {
         for city in state.cities {
@@ -102,10 +106,13 @@ async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
                     icao.entry(chart_dto.icao_ident.clone())
                         .and_modify(|charts| charts.push(chart_dto.clone()))
                         .or_insert(vec![chart_dto.clone()]);
+
+                    count += 1;
                 }
             }
         }
     }
 
+    info!("Loaded {num} charts", num = count);
     Ok(ChartsHashMaps { faa, icao })
 }
