@@ -1,18 +1,20 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 
-use crate::faa_metafile::DigitalTpp;
+use crate::faa_metafile::{DigitalTpp, ProductSet};
 use crate::response_dtos::{ChartDto, ChartGroup};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use chrono::NaiveDate;
 use indexmap::IndexMap;
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use tokio::sync::OnceCell;
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{debug, info};
 
 mod faa_metafile;
 mod response_dtos;
@@ -22,6 +24,15 @@ type ChartsHashMap = IndexMap<String, Vec<ChartDto>>;
 struct ChartsHashMaps {
     faa: ChartsHashMap,
     icao: ChartsHashMap,
+}
+
+async fn current_cycle() -> &'static RwLock<String> {
+    static CURRENT_CYCLE: OnceCell<RwLock<String>> = OnceCell::const_new();
+    CURRENT_CYCLE
+        .get_or_init(|| async {
+            RwLock::new(fetch_current_cycle().await.unwrap_or("2406".to_string()))
+        })
+        .await
 }
 
 #[tokio::main]
@@ -143,10 +154,15 @@ fn filter_charts_group(charts: &[ChartDto], group: Option<i32>) -> Vec<ChartDto>
 }
 
 async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
-    let metafile = reqwest::get("https://aeronav.faa.gov/d-tpp/2406/xml_data/d-tpp_Metafile.xml")
-        .await?
-        .text()
-        .await?;
+    debug!("Starting charts metafile request");
+    let metafile = reqwest::get(format!(
+        "{base}/xml_data/d-tpp_Metafile.xml",
+        base = cycle_url().await
+    ))
+    .await?
+    .text()
+    .await?;
+    debug!("Charts metafile request completed");
     let dtpp = from_str::<DigitalTpp>(&metafile)?;
     let mut faa: ChartsHashMap = IndexMap::new();
     let mut icao: ChartsHashMap = IndexMap::new();
@@ -170,7 +186,8 @@ async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
                         chart_name: record.chart_name.clone(),
                         pdf_name: record.pdf_name.clone(),
                         pdf_path: format!(
-                            "https://aeronav.faa.gov/d-tpp/2406/{pdf}",
+                            "{base}/{pdf}",
+                            base = cycle_url().await,
                             pdf = record.pdf_name
                         ),
                         chart_group: match record.chart_code.as_str() {
@@ -199,4 +216,24 @@ async fn load_charts() -> Result<ChartsHashMaps, anyhow::Error> {
 
     info!("Loaded {num} charts", num = count);
     Ok(ChartsHashMaps { faa, icao })
+}
+
+async fn fetch_current_cycle() -> Result<String, anyhow::Error> {
+    info!("Fetching current cycle");
+    let cycle_xml = reqwest::get("https://external-api.faa.gov/apra/dtpp/info")
+        .await?
+        .text()
+        .await?;
+    let product_set = from_str::<ProductSet>(&cycle_xml)?;
+    let date = NaiveDate::parse_from_str(&product_set.edition.date, "%m/%d/%Y")?;
+    let cycle_str = date.format("%y%m").to_string();
+    info!("Found current cycle: {cycle_str}");
+    Ok(cycle_str)
+}
+
+async fn cycle_url() -> String {
+    format!(
+        "https://aeronav.faa.gov/d-tpp/{current_cycle}",
+        current_cycle = current_cycle().await.read().unwrap()
+    )
 }

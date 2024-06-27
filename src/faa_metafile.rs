@@ -68,3 +68,33 @@ pub struct ChartRecord {
     pub amdtnum: String,
     pub amdtdate: String,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct ProductSet {
+    #[serde(rename = "@xmlns")]
+    pub xmlns: String,
+    pub status: Status,
+    pub edition: Edition,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Status {
+    #[serde(rename = "@code")]
+    pub code: String,
+    #[serde(rename = "@message")]
+    pub message: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Edition {
+    #[serde(rename = "@geoname")]
+    pub geoname: String,
+    #[serde(rename = "@editionName")]
+    pub name: String,
+    #[serde(rename = "@format")]
+    pub format: String,
+    #[serde(rename = "editionDate")]
+    pub date: String,
+    #[serde(rename = "editionNumber")]
+    pub number: String,
+}
