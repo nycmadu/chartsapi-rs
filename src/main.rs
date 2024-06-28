@@ -230,9 +230,11 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
                         .and_modify(|charts| charts.push(chart_dto.clone()))
                         .or_insert(vec![chart_dto.clone()]);
 
-                    icao.entry(chart_dto.icao_ident.clone())
-                        .and_modify(|charts| charts.push(chart_dto.clone()))
-                        .or_insert(vec![chart_dto.clone()]);
+                    if !chart_dto.icao_ident.is_empty() {
+                        icao.entry(chart_dto.icao_ident.clone())
+                            .and_modify(|charts| charts.push(chart_dto.clone()))
+                            .or_insert(vec![chart_dto.clone()]);
+                    }
 
                     count += 1;
                 }
