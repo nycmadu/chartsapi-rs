@@ -20,11 +20,9 @@ use tracing::{debug, info, warn};
 mod faa_metafile;
 mod response_dtos;
 
-type ChartsHashMap = IndexMap<String, Vec<ChartDto>>;
-
 struct ChartsHashMaps {
-    faa: ChartsHashMap,
-    icao: ChartsHashMap,
+    faa: IndexMap<String, Vec<ChartDto>>,
+    icao: IndexMap<String, String>,
 }
 
 #[tokio::main]
@@ -148,7 +146,12 @@ async fn lookup_charts(
 ) -> Option<Vec<ChartDto>> {
     let reader = hashmaps.read().await;
     reader.faa.get(&apt_id.to_uppercase()).map_or_else(
-        || reader.icao.get(&apt_id.to_uppercase()).cloned(),
+        || {
+            reader
+                .icao
+                .get(&apt_id.to_uppercase())
+                .and_then(|faa_id| reader.faa.get(faa_id).cloned())
+        },
         |charts| Some(charts.clone()),
     )
 }
@@ -194,8 +197,8 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
         .await?;
     debug!("Charts metafile request completed");
     let dtpp = from_str::<DigitalTpp>(&metafile)?;
-    let mut faa: ChartsHashMap = IndexMap::new();
-    let mut icao: ChartsHashMap = IndexMap::new();
+    let mut faa: IndexMap<String, Vec<ChartDto>> = IndexMap::new();
+    let mut icao: IndexMap<String, String> = IndexMap::new();
     let mut count = 0;
 
     for state in dtpp.states {
@@ -231,9 +234,7 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
                         .or_insert(vec![chart_dto.clone()]);
 
                     if !chart_dto.icao_ident.is_empty() {
-                        icao.entry(chart_dto.icao_ident.clone())
-                            .and_modify(|charts| charts.push(chart_dto.clone()))
-                            .or_insert(vec![chart_dto.clone()]);
+                        icao.insert(chart_dto.icao_ident.clone(), chart_dto.faa_ident.clone());
                     }
 
                     count += 1;
