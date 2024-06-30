@@ -191,8 +191,12 @@ fn apply_group_param(charts: &[ChartDto], group: Option<i32>) -> ResponseDto {
     )
 }
 
-fn filter_group_by_types(charts: &[ChartDto], types: &[ChartGroup], filter: bool) -> ResponseDto {
-    if filter {
+fn filter_group_by_types(
+    charts: &[ChartDto],
+    types: &[ChartGroup],
+    return_groups: bool,
+) -> ResponseDto {
+    if return_groups {
         let mut grouped = GroupedChartsDto::new();
         charts
             .iter()
