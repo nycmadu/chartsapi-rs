@@ -194,16 +194,10 @@ fn apply_group_param(charts: &[ChartDto], group: Option<i32>) -> ResponseDto {
 fn filter_group_by_types(charts: &[ChartDto], types: &[ChartGroup], filter: bool) -> ResponseDto {
     if filter {
         let mut grouped = GroupedChartsDto::new();
-        for chart in charts {
-            if types.contains(&chart.chart_group) {
-                match &chart.chart_group {
-                    ChartGroup::General | ChartGroup::APD => grouped.add_general(chart.clone()),
-                    ChartGroup::Departures => grouped.add_departure(chart.clone()),
-                    ChartGroup::Arrivals => grouped.add_arrival(chart.clone()),
-                    ChartGroup::Approaches => grouped.add_approach(chart.clone()),
-                }
-            }
-        }
+        charts
+            .iter()
+            .filter(|c| types.contains(&c.chart_group))
+            .for_each(|c| grouped.add_chart(c.clone()));
         GroupedCharts(grouped)
     } else {
         Charts(

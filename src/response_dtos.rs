@@ -50,31 +50,16 @@ impl GroupedChartsDto {
         }
     }
 
-    pub fn add_general(&mut self, chart_dto: ChartDto) {
-        match self.general {
+    pub fn add_chart(&mut self, chart_dto: ChartDto) {
+        let charts_category_vec = match &chart_dto.chart_group {
+            ChartGroup::General | ChartGroup::APD => &mut self.general,
+            ChartGroup::Departures => &mut self.departures,
+            ChartGroup::Arrivals => &mut self.arrivals,
+            ChartGroup::Approaches => &mut self.approaches,
+        };
+        match charts_category_vec {
             Some(ref mut charts) => charts.push(chart_dto),
-            None => self.general = Some(vec![chart_dto]),
-        }
-    }
-
-    pub fn add_departure(&mut self, chart_dto: ChartDto) {
-        match self.departures {
-            Some(ref mut charts) => charts.push(chart_dto),
-            None => self.departures = Some(vec![chart_dto]),
-        }
-    }
-
-    pub fn add_arrival(&mut self, chart_dto: ChartDto) {
-        match self.arrivals {
-            Some(ref mut charts) => charts.push(chart_dto),
-            None => self.arrivals = Some(vec![chart_dto]),
-        }
-    }
-
-    pub fn add_approach(&mut self, chart_dto: ChartDto) {
-        match self.approaches {
-            Some(ref mut charts) => charts.push(chart_dto),
-            None => self.approaches = Some(vec![chart_dto]),
+            None => *charts_category_vec = Some(vec![chart_dto]),
         }
     }
 }
