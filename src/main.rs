@@ -1,7 +1,8 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 
 use crate::faa_metafile::{DigitalTpp, ProductSet};
-use crate::response_dtos::{ChartDto, ChartGroup};
+use crate::response_dtos::ResponseDto::{Charts, GroupedCharts};
+use crate::response_dtos::{ChartDto, ChartGroup, GroupedChartsDto, ResponseDto};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -128,12 +129,12 @@ async fn charts_handler(
             .into_response();
     }
 
-    let mut results: IndexMap<String, Vec<ChartDto>> = IndexMap::new();
+    let mut results: IndexMap<String, ResponseDto> = IndexMap::new();
     for airport in chart_options.apt.unwrap().split(',') {
         if let Some(charts) = lookup_charts(airport, &hashmaps).await {
             results.insert(
                 airport.to_owned(),
-                filter_charts_group(&charts, chart_options.group),
+                apply_group_param(&charts, chart_options.group),
             );
         }
     }
@@ -156,36 +157,57 @@ async fn lookup_charts(
     )
 }
 
-fn filter_charts_group(charts: &[ChartDto], group: Option<i32>) -> Vec<ChartDto> {
+static GROUP_1_TYPES: &[ChartGroup] = &[
+    ChartGroup::APD,
+    ChartGroup::General,
+    ChartGroup::Departures,
+    ChartGroup::Arrivals,
+    ChartGroup::Approaches,
+];
+static GROUP_2_TYPES: &[ChartGroup] = &[ChartGroup::APD];
+static GROUP_3_TYPES: &[ChartGroup] = &[ChartGroup::APD, ChartGroup::General];
+static GROUP_4_TYPES: &[ChartGroup] = &[ChartGroup::Departures];
+static GROUP_5_TYPES: &[ChartGroup] = &[ChartGroup::Arrivals];
+static GROUP_6_TYPES: &[ChartGroup] = &[ChartGroup::Approaches];
+static GROUP_7_TYPES: &[ChartGroup] = &[
+    ChartGroup::Departures,
+    ChartGroup::Arrivals,
+    ChartGroup::Approaches,
+];
+
+fn apply_group_param(charts: &[ChartDto], group: Option<i32>) -> ResponseDto {
     group.map_or_else(
-        || charts.to_owned(),
-        |i| {
-            charts
-                .iter()
-                .filter(|c| match i {
-                    1 => matches!(
-                        c.chart_group,
-                        ChartGroup::General
-                            | ChartGroup::APD
-                            | ChartGroup::Departures
-                            | ChartGroup::Arrivals
-                            | ChartGroup::Approaches
-                    ),
-                    2 => matches!(c.chart_group, ChartGroup::APD),
-                    3 => matches!(c.chart_group, ChartGroup::APD | ChartGroup::General),
-                    4 => matches!(c.chart_group, ChartGroup::Departures),
-                    5 => matches!(c.chart_group, ChartGroup::Arrivals),
-                    6 => matches!(c.chart_group, ChartGroup::Approaches),
-                    7 => matches!(
-                        c.chart_group,
-                        ChartGroup::Departures | ChartGroup::Arrivals | ChartGroup::Approaches
-                    ),
-                    _ => false,
-                })
-                .cloned()
-                .collect()
+        || Charts(charts.to_owned()),
+        |i| match i {
+            1 => filter_group_by_types(charts, GROUP_1_TYPES, true),
+            2 => filter_group_by_types(charts, GROUP_2_TYPES, false),
+            3 => filter_group_by_types(charts, GROUP_3_TYPES, false),
+            4 => filter_group_by_types(charts, GROUP_4_TYPES, false),
+            5 => filter_group_by_types(charts, GROUP_5_TYPES, false),
+            6 => filter_group_by_types(charts, GROUP_6_TYPES, false),
+            7 => filter_group_by_types(charts, GROUP_7_TYPES, true),
+            _ => Charts(vec![]),
         },
     )
+}
+
+fn filter_group_by_types(charts: &[ChartDto], types: &[ChartGroup], filter: bool) -> ResponseDto {
+    if filter {
+        let mut grouped = GroupedChartsDto::new();
+        charts
+            .iter()
+            .filter(|c| types.contains(&c.chart_group))
+            .for_each(|c| grouped.add_chart(c.clone()));
+        GroupedCharts(grouped)
+    } else {
+        Charts(
+            charts
+                .iter()
+                .filter(|c| types.contains(&c.chart_group))
+                .cloned()
+                .collect(),
+        )
+    }
 }
 
 async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Error> {
