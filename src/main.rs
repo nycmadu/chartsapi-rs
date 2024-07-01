@@ -157,19 +157,19 @@ async fn lookup_charts(
     )
 }
 
-static GROUP_1_TYPES: &[ChartGroup] = &[
+const GROUP_1_TYPES: [ChartGroup; 5] = [
     ChartGroup::APD,
     ChartGroup::General,
     ChartGroup::Departures,
     ChartGroup::Arrivals,
     ChartGroup::Approaches,
 ];
-static GROUP_2_TYPES: &[ChartGroup] = &[ChartGroup::APD];
-static GROUP_3_TYPES: &[ChartGroup] = &[ChartGroup::APD, ChartGroup::General];
-static GROUP_4_TYPES: &[ChartGroup] = &[ChartGroup::Departures];
-static GROUP_5_TYPES: &[ChartGroup] = &[ChartGroup::Arrivals];
-static GROUP_6_TYPES: &[ChartGroup] = &[ChartGroup::Approaches];
-static GROUP_7_TYPES: &[ChartGroup] = &[
+const GROUP_2_TYPES: [ChartGroup; 1] = [ChartGroup::APD];
+const GROUP_3_TYPES: [ChartGroup; 2] = [ChartGroup::APD, ChartGroup::General];
+const GROUP_4_TYPES: [ChartGroup; 1] = [ChartGroup::Departures];
+const GROUP_5_TYPES: [ChartGroup; 1] = [ChartGroup::Arrivals];
+const GROUP_6_TYPES: [ChartGroup; 1] = [ChartGroup::Approaches];
+const GROUP_7_TYPES: [ChartGroup; 3] = [
     ChartGroup::Departures,
     ChartGroup::Arrivals,
     ChartGroup::Approaches,
@@ -179,13 +179,13 @@ fn apply_group_param(charts: &[ChartDto], group: Option<i32>) -> ResponseDto {
     group.map_or_else(
         || Charts(charts.to_owned()),
         |i| match i {
-            1 => filter_group_by_types(charts, GROUP_1_TYPES, true),
-            2 => filter_group_by_types(charts, GROUP_2_TYPES, false),
-            3 => filter_group_by_types(charts, GROUP_3_TYPES, false),
-            4 => filter_group_by_types(charts, GROUP_4_TYPES, false),
-            5 => filter_group_by_types(charts, GROUP_5_TYPES, false),
-            6 => filter_group_by_types(charts, GROUP_6_TYPES, false),
-            7 => filter_group_by_types(charts, GROUP_7_TYPES, true),
+            1 => filter_group_by_types(charts, &GROUP_1_TYPES, true),
+            2 => filter_group_by_types(charts, &GROUP_2_TYPES, false),
+            3 => filter_group_by_types(charts, &GROUP_3_TYPES, false),
+            4 => filter_group_by_types(charts, &GROUP_4_TYPES, false),
+            5 => filter_group_by_types(charts, &GROUP_5_TYPES, false),
+            6 => filter_group_by_types(charts, &GROUP_6_TYPES, false),
+            7 => filter_group_by_types(charts, &GROUP_7_TYPES, true),
             _ => Charts(vec![]),
         },
     )
