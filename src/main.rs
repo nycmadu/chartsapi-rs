@@ -52,6 +52,7 @@ async fn main() {
             match fetch_current_cycle().await {
                 Ok(fetched_cycle) => {
                     if fetched_cycle.eq_ignore_ascii_case(&current_cycle.read().await) {
+                        debug!("No new cycle found");
                         return;
                     }
 
@@ -158,14 +159,14 @@ async fn lookup_charts(
 }
 
 const GROUP_1_TYPES: [ChartGroup; 5] = [
-    ChartGroup::APD,
+    ChartGroup::Apd,
     ChartGroup::General,
     ChartGroup::Departures,
     ChartGroup::Arrivals,
     ChartGroup::Approaches,
 ];
-const GROUP_2_TYPES: [ChartGroup; 1] = [ChartGroup::APD];
-const GROUP_3_TYPES: [ChartGroup; 2] = [ChartGroup::APD, ChartGroup::General];
+const GROUP_2_TYPES: [ChartGroup; 1] = [ChartGroup::Apd];
+const GROUP_3_TYPES: [ChartGroup; 2] = [ChartGroup::Apd, ChartGroup::General];
 const GROUP_4_TYPES: [ChartGroup; 1] = [ChartGroup::Departures];
 const GROUP_5_TYPES: [ChartGroup; 1] = [ChartGroup::Arrivals];
 const GROUP_6_TYPES: [ChartGroup; 1] = [ChartGroup::Approaches];
@@ -240,19 +241,18 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
                         military: airport.military.clone(),
                         faa_ident: airport.apt_ident.clone(),
                         icao_ident: airport.icao_ident.clone(),
-                        chart_seq: record.chartseq.clone(),
-                        chart_code: record.chart_code.clone(),
-                        chart_name: record.chart_name.clone(),
-                        pdf_name: record.pdf_name.clone(),
+                        chart_seq: record.chartseq,
+                        chart_name: record.chart_name,
                         pdf_path: format!("{base_url}/{pdf}", pdf = record.pdf_name),
                         chart_group: match record.chart_code.as_str() {
                             "IAP" => ChartGroup::Approaches,
                             "ODP" | "DP" | "DAU" => ChartGroup::Departures,
                             "STAR" => ChartGroup::Arrivals,
-                            "APD" => ChartGroup::APD,
-                            "MIN" | "LAH" | "HOT" => ChartGroup::General,
-                            _ => ChartGroup::General,
+                            "APD" => ChartGroup::Apd,
+                            _ => ChartGroup::General, // Includes "MIN" | "LAH" | "HOT"
                         },
+                        chart_code: record.chart_code,
+                        pdf_name: record.pdf_name,
                     };
 
                     faa.entry(chart_dto.faa_ident.clone())

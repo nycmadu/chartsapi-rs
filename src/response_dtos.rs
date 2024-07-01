@@ -6,7 +6,7 @@ pub enum ChartGroup {
     Departures,
     Arrivals,
     Approaches,
-    APD,
+    Apd,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,7 +52,7 @@ impl GroupedChartsDto {
 
     pub fn add_chart(&mut self, chart_dto: ChartDto) {
         let charts_category_vec = match &chart_dto.chart_group {
-            ChartGroup::General | ChartGroup::APD => &mut self.general,
+            ChartGroup::General | ChartGroup::Apd => &mut self.general,
             ChartGroup::Departures => &mut self.departures,
             ChartGroup::Arrivals => &mut self.arrivals,
             ChartGroup::Approaches => &mut self.approaches,
