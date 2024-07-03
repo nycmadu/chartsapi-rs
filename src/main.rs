@@ -255,12 +255,19 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
                         pdf_name: record.pdf_name,
                     };
 
-                    faa.entry(chart_dto.faa_ident.clone())
-                        .and_modify(|charts| charts.push(chart_dto.clone()))
-                        .or_insert(vec![chart_dto.clone()]);
-
                     if !chart_dto.icao_ident.is_empty() {
                         icao.insert(chart_dto.icao_ident.clone(), chart_dto.faa_ident.clone());
+                    }
+
+                    // Prefer the syntax below, but requires a clone in the modify case
+                    // faa.entry(chart_dto.faa_ident.clone())
+                    //     .and_modify(|charts| charts.push(chart_dto.clone()))
+                    //     .or_insert(vec![chart_dto]);
+
+                    if let Some(charts) = faa.get_mut(&chart_dto.faa_ident) {
+                        charts.push(chart_dto);
+                    } else {
+                        faa.insert(chart_dto.faa_ident.clone(), vec![chart_dto]);
                     }
 
                     count += 1;
@@ -269,7 +276,7 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
         }
     }
 
-    info!("Loaded {num} charts", num = count);
+    info!("Loaded {count} charts");
     Ok(ChartsHashMaps { faa, icao })
 }
 
