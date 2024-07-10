@@ -132,9 +132,10 @@ async fn charts_handler(
 
     let mut results: IndexMap<String, ResponseDto> = IndexMap::new();
     for airport in chart_options.apt.unwrap().split(',') {
-        if let Some(charts) = lookup_charts(airport, &hashmaps).await {
+        let airport_uppercase = airport.to_uppercase();
+        if let Some(charts) = lookup_charts(&airport_uppercase, &hashmaps).await {
             results.insert(
-                airport.to_uppercase(),
+                airport_uppercase,
                 apply_group_param(&charts, chart_options.group),
             );
         }
@@ -147,7 +148,7 @@ async fn lookup_charts(
     hashmaps: &Arc<RwLock<ChartsHashMaps>>,
 ) -> Option<Vec<ChartDto>> {
     let reader = hashmaps.read().await;
-    reader.faa.get(&apt_id.to_uppercase()).map_or_else(
+    reader.faa.get(apt_id).map_or_else(
         || {
             reader
                 .icao
