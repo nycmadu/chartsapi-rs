@@ -134,7 +134,7 @@ async fn charts_handler(
     for airport in chart_options.apt.unwrap().split(',') {
         if let Some(charts) = lookup_charts(airport, &hashmaps).await {
             results.insert(
-                airport.to_owned(),
+                airport.to_uppercase(),
                 apply_group_param(&charts, chart_options.group),
             );
         }
