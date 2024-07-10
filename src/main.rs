@@ -53,7 +53,7 @@ async fn main() {
                 Ok(fetched_cycle) => {
                     if fetched_cycle.eq_ignore_ascii_case(&current_cycle.read().await) {
                         debug!("No new cycle found");
-                        return;
+                        continue;
                     }
 
                     info!("Found new cycle: {fetched_cycle}");
