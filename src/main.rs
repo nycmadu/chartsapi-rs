@@ -242,6 +242,11 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
         for city in state.cities {
             for airport in city.airports {
                 for record in airport.chart_records {
+                    // Skip chart if it was deleted this cycle
+                    if record.useraction == "D" {
+                        continue;
+                    }
+
                     let chart_dto = ChartDto {
                         state: state.id.clone(),
                         state_full: state.full_name.clone(),
