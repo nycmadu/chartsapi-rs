@@ -227,8 +227,9 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
     let dtpp = from_str::<DigitalTpp>(&metafile)?;
 
     let eff_start =
-        NaiveDateTime::parse_from_str(&dtpp.from_effective_date, "%H:%MZ %m/%d/%Y")?.and_utc();
+        NaiveDateTime::parse_from_str(&dtpp.from_effective_date, "%H%MZ  %m/%d/%y")?.and_utc();
     let now = Utc::now();
+    debug!("Effective start for charts: {}", eff_start);
     if eff_start > now {
         anyhow::bail!("Effective date {} greater than now {}", eff_start, now);
     }
