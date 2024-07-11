@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime, Utc};
 use indexmap::IndexMap;
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
@@ -225,6 +225,14 @@ async fn load_charts(current_cycle: &str) -> Result<ChartsHashMaps, anyhow::Erro
         .await?;
     debug!("Charts metafile request completed");
     let dtpp = from_str::<DigitalTpp>(&metafile)?;
+
+    let eff_start =
+        NaiveDateTime::parse_from_str(&dtpp.from_effective_date, "%H:%MZ %m/%d/%Y")?.and_utc();
+    let now = Utc::now();
+    if eff_start > now {
+        anyhow::bail!("Effective date {} greater than now {}", eff_start, now);
+    }
+
     let mut faa: IndexMap<String, Vec<ChartDto>> = IndexMap::new();
     let mut icao: IndexMap<String, String> = IndexMap::new();
     let mut count = 0;
