@@ -22,5 +22,5 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=builder /app/target/release/chartsapi-rs /usr/local/bin
-COPY --from=builder /app/assets /usr/local/bin/assets
+COPY --from=builder /app/assets assets
 ENTRYPOINT ["/usr/local/bin/chartsapi-rs"]
