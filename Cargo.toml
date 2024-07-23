@@ -13,5 +13,5 @@ axum = "0.7.5"
 indexmap = { version = "2.2.6", features = ["serde"] }
 tracing-subscriber = "0.3.18"
 tracing = "0.1.40"
-tower-http = { version = "0.5.2", features = ["trace"] }
+tower-http = { version = "0.5.2", features = ["trace", "fs"] }
 chrono = "0.4.38"

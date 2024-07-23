@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing::{debug, info, warn};
 
@@ -73,6 +74,7 @@ async fn main() {
     // Create and run axum app
     let app = Router::new()
         .route("/v1/charts", get(charts_handler))
+        .nest_service("/v1/charts/static", ServeDir::new("assets"))
         .route(
             "/v1/charts/:apt_id/:chart_search_term",
             get(chart_search_handler),
