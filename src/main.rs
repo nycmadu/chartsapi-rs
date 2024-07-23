@@ -3,9 +3,9 @@
 use crate::faa_metafile::{DigitalTpp, ProductSet};
 use crate::response_dtos::ResponseDto::{Charts, GroupedCharts};
 use crate::response_dtos::{ChartDto, ChartGroup, GroupedChartsDto, ResponseDto};
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use chrono::{NaiveDate, NaiveDateTime, Utc};
@@ -73,6 +73,10 @@ async fn main() {
     // Create and run axum app
     let app = Router::new()
         .route("/v1/charts", get(charts_handler))
+        .route(
+            "/v1/charts/:apt_id/:chart_search_term",
+            get(chart_search_handler),
+        )
         .with_state(axum_state)
         .layer(TraceLayer::new_for_http());
 
@@ -157,6 +161,31 @@ async fn lookup_charts(
         },
         |charts| Some(charts.clone()),
     )
+}
+
+async fn chart_search_handler(
+    State(hashmaps): State<Arc<RwLock<ChartsHashMaps>>>,
+    Path((apt_id, chart_search)): Path<(String, String)>,
+) -> Response {
+    if let Some(charts) = lookup_charts(&apt_id.to_uppercase(), &hashmaps).await {
+        if let Some(chart) = charts
+            .iter()
+            .find(|c| c.chart_name.contains(&chart_search.to_uppercase()))
+        {
+            return Redirect::temporary(&chart.pdf_path).into_response();
+        }
+    }
+
+    // Return 404 if we didn't find a chart above
+    (
+        StatusCode::NOT_FOUND,
+        Json(ErrorMessage {
+            status: "error",
+            status_code: "404",
+            message: "Chart not found.",
+        }),
+    )
+        .into_response()
 }
 
 const GROUP_1_TYPES: [ChartGroup; 5] = [
