@@ -38,7 +38,7 @@ async fn main() {
             "Error initializing current cycle, falling back to default: {}",
             e
         );
-        "2407".to_string()
+        "2408".to_string()
     }));
     let cycle_clone = current_cycle.read().unwrap().clone();
     let hashmaps = Arc::new(RwLock::new(
