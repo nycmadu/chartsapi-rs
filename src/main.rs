@@ -12,9 +12,8 @@ use chrono::{NaiveDate, NaiveDateTime, Utc};
 use indexmap::IndexMap;
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use tokio::sync::RwLock;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing::{debug, info, warn};
@@ -39,10 +38,13 @@ async fn main() {
             "Error initializing current cycle, falling back to default: {}",
             e
         );
-        "2406".to_string()
+        "2407".to_string()
     }));
+    let cycle_clone = current_cycle.read().unwrap().clone();
     let hashmaps = Arc::new(RwLock::new(
-        load_charts(&current_cycle.read().await).await.unwrap(),
+        load_charts(&cycle_clone)
+            .await
+            .expect("Could not fetch and initialize charts"),
     ));
     let axum_state = Arc::clone(&hashmaps);
 
@@ -52,7 +54,7 @@ async fn main() {
             tokio::time::sleep(Duration::from_secs(3600)).await;
             match fetch_current_cycle().await {
                 Ok(fetched_cycle) => {
-                    if fetched_cycle.eq_ignore_ascii_case(&current_cycle.read().await) {
+                    if fetched_cycle.eq_ignore_ascii_case(&current_cycle.read().unwrap()) {
                         debug!("No new cycle found");
                         continue;
                     }
@@ -60,8 +62,8 @@ async fn main() {
                     info!("Found new cycle: {fetched_cycle}");
                     match load_charts(&fetched_cycle).await {
                         Ok(new_charts) => {
-                            *hashmaps.write().await = new_charts;
-                            *current_cycle.write().await = fetched_cycle;
+                            *hashmaps.write().unwrap() = new_charts;
+                            *current_cycle.write().unwrap() = fetched_cycle;
                         }
                         Err(e) => warn!("Error while fetching charts: {}", e),
                     }
@@ -139,7 +141,7 @@ async fn charts_handler(
     let mut results: IndexMap<String, ResponseDto> = IndexMap::new();
     for airport in chart_options.apt.unwrap().split(',') {
         let airport_uppercase = airport.to_uppercase();
-        if let Some(charts) = lookup_charts(&airport_uppercase, &hashmaps).await {
+        if let Some(charts) = lookup_charts(&airport_uppercase, &hashmaps) {
             results.insert(
                 airport_uppercase,
                 apply_group_param(&charts, chart_options.group),
@@ -149,11 +151,8 @@ async fn charts_handler(
     (StatusCode::OK, Json(results)).into_response()
 }
 
-async fn lookup_charts(
-    apt_id: &str,
-    hashmaps: &Arc<RwLock<ChartsHashMaps>>,
-) -> Option<Vec<ChartDto>> {
-    let reader = hashmaps.read().await;
+fn lookup_charts(apt_id: &str, hashmaps: &Arc<RwLock<ChartsHashMaps>>) -> Option<Vec<ChartDto>> {
+    let reader = hashmaps.read().unwrap();
     reader.faa.get(apt_id).map_or_else(
         || {
             reader
@@ -169,7 +168,7 @@ async fn chart_search_handler(
     State(hashmaps): State<Arc<RwLock<ChartsHashMaps>>>,
     Path((apt_id, chart_search)): Path<(String, String)>,
 ) -> Response {
-    if let Some(charts) = lookup_charts(&apt_id.to_uppercase(), &hashmaps).await {
+    if let Some(charts) = lookup_charts(&apt_id.to_uppercase(), &hashmaps) {
         if let Some(chart) = charts
             .iter()
             .find(|c| c.chart_name.contains(&chart_search.to_uppercase()))
