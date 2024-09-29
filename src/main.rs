@@ -38,7 +38,7 @@ async fn main() {
             "Error initializing current cycle, falling back to default: {}",
             e
         );
-        "2408".to_string()
+        "2409".to_string()
     }));
     let cycle_clone = current_cycle.read().unwrap().clone();
     let hashmaps = Arc::new(RwLock::new(
@@ -174,6 +174,15 @@ async fn chart_search_handler(
             .find(|c| c.chart_name.contains(&chart_search.to_uppercase()))
         {
             return Redirect::temporary(&chart.pdf_path).into_response();
+        } else {
+            let cleaned_search: String =
+                chart_search.chars().filter(|c| c.is_alphabetic()).collect();
+            if let Some(chart) = charts.iter().find(|c| {
+                (c.chart_group == ChartGroup::Arrivals || c.chart_group == ChartGroup::Departures)
+                    && c.chart_name.contains(&cleaned_search.to_uppercase())
+            }) {
+                return Redirect::temporary(&chart.pdf_path).into_response();
+            }
         }
     }
 
