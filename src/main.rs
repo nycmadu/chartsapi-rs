@@ -38,7 +38,7 @@ async fn main() {
             "Error initializing current cycle, falling back to default: {}",
             e
         );
-        "2408".to_string()
+        "2411".to_string()
     }));
     let cycle_clone = current_cycle.read().unwrap().clone();
     let hashmaps = Arc::new(RwLock::new(
@@ -332,7 +332,7 @@ async fn fetch_current_cycle() -> Result<String, anyhow::Error> {
         .await?;
     let product_set = from_str::<ProductSet>(&cycle_xml)?;
     let date = NaiveDate::parse_from_str(&product_set.edition.date, "%m/%d/%Y")?;
-    let cycle_str = date.format("%y%m").to_string();
+    let cycle_str = format!("{}{}", date.format("%y"), product_set.edition.number);
     info!("Found current cycle: {cycle_str}");
     Ok(cycle_str)
 }
