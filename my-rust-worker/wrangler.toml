@@ -1,0 +1,6 @@
+name = "my-rust-worker"
+compatibility_date = "2024-11-03"
+
+[[wasm_modules]]
+name = "my_rust_worker"
+path = "./target/wasm32-wasi/release/my_rust_worker.wasm"
