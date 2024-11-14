@@ -2,4 +2,4 @@ services:
   api:
     build: .
     ports:
-      - 8999:8000
+      - "8000:8000"
