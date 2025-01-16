@@ -81,6 +81,7 @@ async fn main() {
             "/v1/charts/:apt_id/:chart_search_term",
             get(chart_search_handler),
         )
+        .route("/health", get(|| async {}))
         .with_state(axum_state)
         .layer(TraceLayer::new_for_http());
 

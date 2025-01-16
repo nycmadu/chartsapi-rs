@@ -17,7 +17,7 @@ RUN cargo build --release --bin chartsapi-rs
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
-    && apt-get install -y ca-certificates tzdata openssl \
+    && apt-get install -y ca-certificates tzdata openssl curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
